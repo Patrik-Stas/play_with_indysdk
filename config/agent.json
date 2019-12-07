@@ -1,0 +1,21 @@
+{
+  "wallet_storage": {
+    "wallet_config": {
+      "id": "dummy_PDxd9sibErr9CFDgAKZ8MF_Q0wtjQxtpT",
+      "storage_type": "postgres_storage",
+      "storage_config": {
+        "url": "localhost:5432"
+      }
+    },
+    "wallet_credentials": {
+      "key": "BcYjTMHy6e",
+      "storage_credentials": {
+        "account": "postgres",
+        "password": "mysecretpassword",
+        "admin_account": "postgres",
+        "admin_password": "mysecretpassword"
+      }
+    }
+  }
+}
+

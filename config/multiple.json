@@ -1,0 +1,25 @@
+{
+  "wallet_storage": {
+    "wallet_config": {
+      "id": "patrikmulti",
+      "storage_type": "postgres_storage",
+      "storage_config": {
+        "url": "localhost:5432",
+        "max_connections" : 90,
+        "wallet_scheme": "MultiWalletSingleTable",
+        "min_idle_time": 0,
+        "connection_timeout": 1
+      }
+    },
+    "wallet_credentials": {
+      "key": "123",
+      "storage_credentials": {
+        "account": "postgres",
+        "password": "mysecretpassword",
+        "admin_account": "postgres",
+        "admin_password": "mysecretpassword"
+      }
+    }
+  }
+}
+

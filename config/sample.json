@@ -1,0 +1,23 @@
+{
+  "wallet_storage": {
+    "wallet_config": {
+      "id": "forward_agent_wallet_id",
+      "storage_type": "postgres_storage",
+      "storage_config": {
+        "url": "localhost:5432",
+        "max_connections" : 90,
+        "wallet_scheme": "MultiWalletSingleTable"
+      }
+    },
+    "wallet_credentials": {
+      "key": "forward_agent_wallet_passphrase",
+      "storage_credentials": {
+        "account": "postgres",
+        "password": "mysecretpassword",
+        "admin_account": "postgres",
+        "admin_password": "mysecretpassword"
+      }
+    }
+  }
+}
+
