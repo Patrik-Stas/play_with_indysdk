@@ -307,7 +307,12 @@ fn create_open_wallet_future(iter_wallet_config: WalletConfig, iter_wallet_crede
 //   try_create_wallet(&str_wallet_config, &str_wallet_credentials);
 
     info!("Going to open wallet '{}' using config {:?} and credential {:?}.", &iter_wallet_config.id, &str_wallet_config, &str_wallet_credentials);
-    Box::new(futures::future::ok(()).and_then(move |_| wallet::open_wallet(&str_wallet_config, &str_wallet_credentials)))
+    Box::new(futures::future::ok(()) // this is crucial. This makes the future lazy, because it's not by default!!! Though open_wallet is asynchronous and returns future, it's not the way one might expect it to be.
+        // Calling open_wallet will actually initiate execution of opening. If you call open_wallet on 1000 wallets and get back 1000 futures, the opening of these 1000 wallets already started, even
+        // if you never execute the received future. If you execute the future to get the handle back, it will either wait for the internal indysdk wallet-opening execution to finish, or it will straight away
+        // return value because indy-sdk has already opened it in the meantime.
+        .and_then(move |_| wallet::open_wallet(&str_wallet_config, &str_wallet_credentials))
+    )
 }
 
 fn create_and_open_wallets(wallet_config: WalletConfig, wallet_credentials: WalletCredentials, walletIds: Vec<String>) -> Vec<Box<dyn Future<Item=WalletHandle, Error=IndyError>>> {
@@ -348,7 +353,7 @@ fn do_the_magic(wallet_config: WalletConfig, wallet_credentials: WalletCredentia
     let parallel_cnt = env::var("PARALELL_CNT").expect("Missing ENV variable 'PARALELL_CNT'").parse::<u32>().expect("Can't parse value of 'PARALELL_CNT' as u32");
 
     let from0 = 0;
-    let to0 = 100;
+    let to0 = 300;
     let futures = create_and_open_wallets(wallet_config.clone(), wallet_credentials.clone(), generate_multiwallet_ids(from0..to0));
     let stream = stream::iter_ok::<_, IndyError>(futures);
 
@@ -446,13 +451,14 @@ fn do_the_magic_blocking(wallet_config: WalletConfig, wallet_credentials: Wallet
         _ => {}
     }
     info!("Finished load_storage_library");
-    let parallel_cnt = env::var("PARALELL_CNT").expect("Missing ENV variable 'PARALELL_CNT'").parse::<u32>().expect("Can't parse value of 'PARALELL_CNT' as u32");
+    let parallel_cnt = env::var("PARALELL_CNT").expect("Missing ENV variable 'PARALELL_CNT'").parse::<usize>().expect("Can't parse value of 'PARALELL_CNT' as u32");
+    let open_wallets_cnt = env::var("WALLET_CNT").expect("Missing ENV variable 'WALLET_CNT'").parse::<u32>().expect("Can't parse value of 'WALLET_CNT' as u32");
 
-    let futures = create_and_open_wallets(wallet_config.clone(), wallet_credentials.clone(), generate_multiwallet_ids(0..50));
+    let futures = create_and_open_wallets(wallet_config.clone(), wallet_credentials.clone(), generate_multiwallet_ids(0..open_wallets_cnt));
     let stream = stream::iter_ok::<_, IndyError>(futures);
 
     let stream2 = stream
-        .buffer_unordered(2)
+        .buffer_unordered(parallel_cnt)
         .for_each(|_| {
             println!("Resolved stream value",);
             future::ok(())
