@@ -307,10 +307,16 @@ fn create_open_wallet_future(iter_wallet_config: WalletConfig, iter_wallet_crede
 //   try_create_wallet(&str_wallet_config, &str_wallet_credentials);
 
     info!("Going to open wallet '{}' using config {:?} and credential {:?}.", &iter_wallet_config.id, &str_wallet_config, &str_wallet_credentials);
-    Box::new(futures::future::ok(()) // this is crucial. This makes the future lazy, because it's not by default!!! Though open_wallet is asynchronous and returns future, it's not the way one might expect it to be.
+    let walletIdClone = iter_wallet_config.id.clone();
+    Box::new(
+        futures::future::ok(())
+        // this is crucial. This makes the future lazy, because it's not by default!!! Though open_wallet is asynchronous and returns future, it's not the way one might expect it to be.
         // Calling open_wallet will actually initiate execution of opening. If you call open_wallet on 1000 wallets and get back 1000 futures, the opening of these 1000 wallets already started, even
         // if you never execute the received future. If you execute the future to get the handle back, it will either wait for the internal indysdk wallet-opening execution to finish, or it will straight away
         // return value because indy-sdk has already opened it in the meantime.
+        .inspect(move |_| {
+            info!("Initiating open execution for wallet {}", walletIdClone)
+        })
         .and_then(move |_| wallet::open_wallet(&str_wallet_config, &str_wallet_credentials))
     )
 }
@@ -357,30 +363,14 @@ fn do_the_magic(wallet_config: WalletConfig, wallet_credentials: WalletCredentia
     let futures = create_and_open_wallets(wallet_config.clone(), wallet_credentials.clone(), generate_multiwallet_ids(from0..to0));
     let stream = stream::iter_ok::<_, IndyError>(futures);
 
-//    let stream2 = stream // TODO: lets get this working first without buffering.
-//        .for_each(|handle| { // TODO: Why am I getting future here? I though I would wrok with results already here
-//            println!("opened wallet. Handle = {}", handle);
-//            futures::future::ok(())
-//        });
-
-    // works without buffering like this
-//        let stream2 = stream
-//            .for_each(|handleFuture| {
-//                handleFuture.and_then(|handle| {
-//                    println!("opened wallet. Handle = {}", handle);
-//                    futures::future::ok(())
-//                })
-//            });
-
-        let stream2 = stream.buffer_unordered(20)
-            .for_each(|handle| {
-                    println!("opened wallet. Handle = {}", handle);
-                    futures::future::ok(())
-            });
+    let stream2 = stream.buffer_unordered(20)
+        .for_each(|handle| {
+            println!("opened wallet. Handle = {}", handle);
+            futures::future::ok(())
+        });
 
     let fff = stream2.into_future().and_then(|_| futures::future::ok(())).map_err(|_| ());
-    fff.wait(); // TODO: why seem not ot exectue anything?
-//    tokio::run(fff);
+    fff.wait();
 }
 
 fn do_the_magic_block_manually(wallet_config: WalletConfig, wallet_credentials: WalletCredentials) {
@@ -436,7 +426,6 @@ fn do_the_magic_block_manually(wallet_config: WalletConfig, wallet_credentials: 
 //    warn!("Result handle {:?}", h8);
 //    let h9 = f9.wait();
 //    warn!("Result handle {:?}", h9);
-
 }
 
 fn do_the_magic_blocking(wallet_config: WalletConfig, wallet_credentials: WalletCredentials) {
@@ -448,9 +437,10 @@ fn do_the_magic_blocking(wallet_config: WalletConfig, wallet_credentials: Wallet
     info!("Going to load_storage_library");
     match load_storage_library(&get_postgres_storage_plugin(), "postgresstorage_init", &storage_config, &storage_credentials) {
         Err(err) => panic!("Failed to load or initialize storage plugin."),
-        _ => {}
+        _ => {
+            info!("Finished load_storage_library");
+        }
     }
-    info!("Finished load_storage_library");
     let parallel_cnt = env::var("PARALELL_CNT").expect("Missing ENV variable 'PARALELL_CNT'").parse::<usize>().expect("Can't parse value of 'PARALELL_CNT' as u32");
     let open_wallets_cnt = env::var("WALLET_CNT").expect("Missing ENV variable 'WALLET_CNT'").parse::<u32>().expect("Can't parse value of 'WALLET_CNT' as u32");
 
@@ -459,8 +449,8 @@ fn do_the_magic_blocking(wallet_config: WalletConfig, wallet_credentials: Wallet
 
     let stream2 = stream
         .buffer_unordered(parallel_cnt)
-        .for_each(|_| {
-            println!("Resolved stream value",);
+        .for_each(|handle: i32| {
+            info!("Wallet opened! WHandle={:}", handle);
             future::ok(())
         });
 
